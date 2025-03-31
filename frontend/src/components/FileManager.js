@@ -76,18 +76,30 @@ const FileManager = () => {
     formData.append('filename', selectedFile.name);
     formData.append('file_size', selectedFile.size);
 
+    // Add the file_type field based on extension
+    const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
+    let fileType = 'other';
+    if (fileExtension === 'pdf') {
+      fileType = 'pdf';
+    } else if (['xlsx', 'xls'].includes(fileExtension)) {
+      fileType = 'excel';
+    } else if (fileExtension === 'txt') {
+      fileType = 'txt';
+    } else if (['doc', 'docx'].includes(fileExtension)) {
+      fileType = 'docx';
+    }
+    formData.append('file_type', fileType);
+
     try {
-      await axios.post(`${API_URL}/api/files/`, formData, {
+      // Use a direct upload first without monitoring progress
+      const response = await axios.post(`${API_URL}/api/files/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'Authorization': `Token ${token}`
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(percentCompleted);
         }
       });
 
+      console.log('Upload successful:', response.data);
       setSuccess('File uploaded successfully!');
       setSelectedFile(null);
       fetchFiles();
@@ -98,7 +110,20 @@ const FileManager = () => {
       }, 3000);
     } catch (err) {
       console.error('Error uploading file:', err);
-      setError('Failed to upload file: ' + (err.response?.data?.detail || err.message));
+      let errorMessage = 'Failed to upload file';
+
+      if (err.response) {
+        console.error('Error response:', err.response);
+        if (err.response.status === 500) {
+          errorMessage = 'Server error during upload. This may be due to S3 permission issues.';
+        } else if (err.response.status === 400) {
+          errorMessage = `Upload failed: ${err.response.data?.detail || 'Invalid data provided'}`;
+        } else {
+          errorMessage = `Upload failed with status ${err.response.status}: ${err.response.data?.detail || err.message}`;
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }

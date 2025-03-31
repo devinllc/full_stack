@@ -4,15 +4,14 @@ import axios from 'axios';
 import { logoutFromFirebase } from './firebase';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import API_URL from './config';
 
 // Components
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
-import FileManager from './components/FileManager';
-import UserProfile from './components/UserProfile';
 import Navbar from './components/layout/Navbar';
+import UserProfile from './components/UserProfile';
+import FileManager from './components/FileManager';
 
 // Set axios defaults
 axios.defaults.baseURL = 'http://localhost:8002/api';
@@ -76,11 +75,10 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null);
 
   // Check if user is authenticated
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkAuth = async () => {
       const token = localStorage.getItem('token');
 
       if (!token) {
@@ -90,36 +88,19 @@ function App() {
       }
 
       try {
-        const response = await axios.get(`${API_URL}/api/profile/`, {
-          headers: { Authorization: `Token ${token}` }
-        });
-
-        setUser(response.data);
+        const res = await axios.get('/profile/');
         setIsAuthenticated(true);
+        setUser(res.data);
       } catch (err) {
-        console.error('Auth error:', err);
+        console.error('Authentication check failed:', err.message);
         localStorage.removeItem('token');
         setIsAuthenticated(false);
         setUser(null);
-        setError('Session expired. Please log in again.');
       }
     };
 
-    checkAuthStatus();
+    checkAuth();
   }, []);
-
-  // Login function
-  const login = async (userData) => {
-    try {
-      setIsAuthenticated(true);
-      setUser(userData);
-      setError(null);
-      return true;
-    } catch (err) {
-      setError(err.message || 'Login failed');
-      return false;
-    }
-  };
 
   // Logout function
   const logout = async () => {
@@ -139,14 +120,12 @@ function App() {
       localStorage.removeItem('token');
       setIsAuthenticated(false);
       setUser(null);
-      setError(null);
     } catch (err) {
       console.error('Logout error:', err.response?.data || err.message);
       // Still remove token and log out even if server logout fails
       localStorage.removeItem('token');
       setIsAuthenticated(false);
       setUser(null);
-      setError('Logout encountered an error, but you have been signed out.');
     }
   };
 
@@ -156,20 +135,9 @@ function App() {
       <Router>
         {isAuthenticated && <Navbar user={user} logout={logout} />}
         <div className="container">
-          {error && (
-            <div style={{
-              padding: '10px',
-              margin: '10px 0',
-              backgroundColor: '#f8d7da',
-              color: '#721c24',
-              borderRadius: '4px'
-            }}>
-              {error}
-            </div>
-          )}
           <Routes>
             <Route path="/login" element={
-              isAuthenticated ? <Navigate to="/dashboard" /> : <Login login={login} />
+              isAuthenticated ? <Navigate to="/dashboard" /> : <Login />
             } />
             <Route path="/register" element={
               isAuthenticated ? <Navigate to="/dashboard" /> : <Register />

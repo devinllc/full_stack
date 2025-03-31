@@ -1,142 +1,172 @@
 # File Manager Application
 
-A modern, secure file management system with user authentication, file upload/download functionality, analytics dashboard, and user profile management.
+A modern file management application with secure authentication, file uploads to AWS S3, and user profile management.
 
 ## Features
 
-- **Secure Authentication**
-  - Email/password login
-  - Firebase authentication integration (optional)
-  - Token-based API security
-
-- **Comprehensive File Management**
-  - Upload files with progress tracking
-  - Download files with a simple click
-  - View file details (name, type, size, upload date)
-  - Organize and manage your documents
-
-- **Powerful Dashboard**
-  - View total files and storage used
-  - Analyze file types with visual breakdowns
-  - Track recent uploads and usage patterns
-
-- **User Profile Management**
-  - Edit personal information
-  - Manage multiple addresses
-  - Update contact details
-
-- **Cloud Storage Integration**
-  - AWS S3 for reliable file storage
-  - Scalable architecture
-  - Fast and reliable access
+- Secure authentication with token-based login
+- File upload, download, and management capabilities
+- AWS S3 integration for reliable cloud storage
+- User profile management with address capabilities
+- Modern React UI with Material-UI components
 
 ## System Architecture
 
-### Backend (Django REST API)
-- Django REST Framework for API endpoints
-- PostgreSQL database for structured data
-- AWS S3 integration for file storage
-- Token-based authentication
+- **Frontend**: React with Material-UI
+- **Backend**: Django REST Framework
+- **Storage**: AWS S3
+- **Database**: PostgreSQL
 
-### Frontend (React.js)
-- Modern React with hooks and functional components
-- Material-UI for responsive design
-- Chart.js for analytics visualization
-- Axios for API communication
+## Prerequisites
 
-## Getting Started
-
-### Prerequisites
 - Python 3.8+
-- Node.js 14+
-- PostgreSQL (or SQLite for development)
-- AWS account with S3 bucket (for production)
+- Node.js 14+ and npm
+- PostgreSQL
+- AWS S3 bucket
 
-### Local Development Setup
+## Local Development Setup
 
-#### Backend Setup
-```bash
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+### Backend Setup
 
-# Navigate to backend directory
-cd filemanager/backend
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd filemanager
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+2. Create and activate a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-# Run migrations
-python manage.py migrate
+3. Install backend dependencies:
+   ```
+   cd backend
+   pip install -r requirements.txt
+   ```
 
-# Start development server
-python manage.py runserver 8002
-```
+4. Create a `.env` file in the `backend` directory with the following variables:
+   ```
+   # Django settings
+   SECRET_KEY=your-django-secret-key
+   DEBUG=True
+   ALLOWED_HOSTS=localhost,127.0.0.1
 
-#### Frontend Setup
-```bash
-# Navigate to frontend directory
-cd filemanager/frontend
+   # Database settings
+   DB_NAME=file_manager
+   DB_USER=your-db-user
+   DB_PASSWORD=your-db-password
+   DB_HOST=localhost
+   DB_PORT=5432
 
-# Install dependencies
-npm install
+   # AWS S3 Configuration
+   AWS_ACCESS_KEY_ID=your-aws-access-key
+   AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+   AWS_STORAGE_BUCKET_NAME=your-s3-bucket-name
+   AWS_S3_REGION_NAME=your-s3-region
 
-# Start development server
-npm start
-```
+   # CORS settings
+   CORS_ALLOWED_ORIGINS=http://localhost:3000
+   ```
+
+5. Run migrations:
+   ```
+   python manage.py migrate
+   ```
+
+6. Create a superuser:
+   ```
+   python manage.py createsuperuser
+   ```
+
+7. Start the Django server:
+   ```
+   python manage.py runserver 8002
+   ```
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```
+   cd ../frontend
+   ```
+
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Create a `.env` file in the frontend directory with:
+   ```
+   REACT_APP_API_URL=http://localhost:8002
+   ```
+
+4. Start the development server:
+   ```
+   npm start
+   ```
+
+5. The application should now be running at [http://localhost:3000](http://localhost:3000)
 
 ## Deployment
 
-This application is configured for easy deployment on Vercel for both frontend and backend:
+### Backend Deployment
 
-- **Single Platform Deployment**: Both frontend and backend can be deployed on Vercel
-- **Serverless Architecture**: Backend runs as serverless functions
-- **Automatic Deployments**: Automatically deploys when you push to GitHub
-- **Environment Configuration**: Easy environment variable management
+1. Set environment variables in your hosting environment
+2. Configure CORS settings for your frontend domain
+3. Set DEBUG=False for production
+4. Configure a proper database for production
+5. Use a WSGI server like Gunicorn
 
-For detailed deployment instructions, see:
-- [Unified Vercel Deployment Guide](./docs/VERCEL_DEPLOYMENT.md)
-- [AWS S3 Setup Guide](./docs/AWS_SETUP.md)
+### Frontend Deployment
 
-### IMPORTANT: Firebase Credentials
+1. Build the frontend for production:
+   ```
+   npm run build
+   ```
+2. Deploy the contents of the build folder to your hosting service
 
-Firebase credentials are not included in the Git repository for security reasons. After deployment, you need to:
+## Environment Variables
 
-1. Add Firebase credentials to your deployed application using one of these methods:
-   - Create a `firebase-credentials.json` file on the server
-   - Set Firebase environment variables in Vercel
+### Backend
 
-See the [Vercel Deployment Guide](./docs/VERCEL_DEPLOYMENT.md) for detailed instructions.
+- `SECRET_KEY`: Django secret key
+- `DEBUG`: Enable/disable debug mode
+- `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: Database configuration
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`: AWS credentials
+- `AWS_STORAGE_BUCKET_NAME`: S3 bucket name
+- `AWS_S3_REGION_NAME`: S3 region
+- `CORS_ALLOWED_ORIGINS`: Frontend URLs allowed to access the API
 
-### Pushing Changes to Git
+### Frontend
 
-To safely push your changes to Git without including Firebase credentials, use the provided script:
+- `REACT_APP_API_URL`: Backend API URL
 
-```bash
-./safe_git_push.sh
-```
+## Important Notes
 
-This script will:
-1. Backup your Firebase credentials file
-2. Remove it before pushing to Git
-3. Restore it after the push is complete
+- Make sure your S3 bucket is properly configured for your needs
+- For S3 buckets with "Bucket owner enforced" Object Ownership, ACLs are disabled by default
+- Always keep your credentials secure and never commit them to version control
 
-## Configuration
+## Troubleshooting
 
-See the [Configuration Guide](./docs/CONFIGURATION.md) for detailed information on setting up environment variables and application settings.
+### S3 Permission Issues
 
-## Contributing
+If you encounter S3 permission issues:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Verify your AWS credentials are correct
+2. Check your S3 bucket permissions
+3. For buckets with Object Ownership set to "Bucket owner enforced", make sure the code doesn't try to set ACLs
+
+### CORS Issues
+
+If you encounter CORS issues:
+
+1. Make sure your backend CORS settings include your frontend URL
+2. Check the network tab in your browser's developer tools for specific CORS errors
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For support or questions, please contact the development team or open an issue in the repository. 
+[MIT License](LICENSE) 

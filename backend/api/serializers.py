@@ -5,30 +5,29 @@ from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
 
-class AddressSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Address
-        fields = ['id', 'street', 'city', 'state', 'zipcode', 'country', 'user']
-        read_only_fields = ['user']
-
-class UploadedFileSerializer(serializers.ModelSerializer):
-    file_url = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = UploadedFile
-        fields = ['id', 'file', 'filename', 'file_size', 'upload_date', 'user', 'file_url']
-        read_only_fields = ['user', 'file_url']
-    
-    def get_file_url(self, obj):
-        if obj.file:
-            return obj.file.url
-        return None
-
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
         read_only_fields = ['id', 'email']  # Don't allow email changes via PATCH
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['id', 'street', 'city', 'state', 'postal_code', 'country', 'is_default', 'user']
+        read_only_fields = ['user']
+
+class UploadedFileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    file_url = serializers.URLField(read_only=True)
+    file_size = serializers.IntegerField(read_only=True, required=False)
+    file_type = serializers.CharField(required=False)  # Make file_type optional
+    filename = serializers.CharField(required=False)  # Make filename optional
+    
+    class Meta:
+        model = UploadedFile
+        fields = ['id', 'user', 'file', 'filename', 'file_type', 'file_size', 'file_url', 'upload_date']
+        read_only_fields = ['id', 'user', 'file_url', 'upload_date']
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(write_only=True)

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Paper, Typography, TextField, Button, Grid, IconButton, Divider, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Container, Paper, Typography, TextField, Button, Grid, IconButton, Divider, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from '@mui/material';
 import { Edit, Delete, Add, Save } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import API_URL from '../config';
 
 const UserProfile = () => {
+  const [user, setUser] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -22,8 +23,9 @@ const UserProfile = () => {
     street: '',
     city: '',
     state: '',
-    zipcode: '',
+    postal_code: '',
     country: '',
+    is_default: false,
     id: null
   });
   const [editingAddress, setEditingAddress] = useState(false);
@@ -39,10 +41,11 @@ const UserProfile = () => {
 
     const fetchUserData = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/profile/`, {
+        const response = await axios.get(`${API_URL}/api/users/me/`, {
           headers: { Authorization: `Token ${token}` }
         });
 
+        setUser(response.data);
         setUsername(response.data.username || '');
         setPhoneNumber(response.data.phone_number || '');
         setFirstName(response.data.first_name || '');
@@ -76,8 +79,8 @@ const UserProfile = () => {
     const token = localStorage.getItem('token');
 
     try {
-      await axios.put(
-        `${API_URL}/api/profile/`,
+      const response = await axios.patch(
+        `${API_URL}/api/users/me/update/`,
         {
           username,
           phone_number: phoneNumber,
@@ -89,11 +92,16 @@ const UserProfile = () => {
         }
       );
 
+      // Update local user state with the response data
+      if (response.data) {
+        setUser(response.data);
+      }
+
       setSuccess('Profile updated successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Failed to update profile');
-      console.error('Error updating profile:', err);
+      setError('Failed to update profile: ' + (err.response?.data?.detail || err.message));
+      console.error('Error updating profile:', err.response?.data || err.message);
     }
   };
 
@@ -106,8 +114,9 @@ const UserProfile = () => {
         street: '',
         city: '',
         state: '',
-        zipcode: '',
+        postal_code: '',
         country: '',
+        is_default: false,
         id: null
       });
       setEditingAddress(false);
@@ -120,9 +129,10 @@ const UserProfile = () => {
   };
 
   const handleAddressChange = (e) => {
+    const { name, value, checked, type } = e.target;
     setAddressForm({
       ...addressForm,
-      [e.target.name]: e.target.value
+      [name]: type === 'checkbox' ? checked : value
     });
   };
 
@@ -276,7 +286,7 @@ const UserProfile = () => {
               <ListItem key={address.id} divider sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <ListItemText
                   primary={`${address.street}, ${address.city}`}
-                  secondary={`${address.state}, ${address.zipcode}, ${address.country}`}
+                  secondary={`${address.state}, ${address.postal_code}, ${address.country}`}
                 />
                 <div>
                   <IconButton onClick={() => handleAddressDialogOpen(address)} color="primary">
@@ -327,9 +337,9 @@ const UserProfile = () => {
               <TextField
                 fullWidth
                 margin="dense"
-                name="zipcode"
+                name="postal_code"
                 label="Zip/Postal Code"
-                value={addressForm.zipcode}
+                value={addressForm.postal_code}
                 onChange={handleAddressChange}
               />
             </Grid>
@@ -341,6 +351,16 @@ const UserProfile = () => {
             label="Country"
             value={addressForm.country}
             onChange={handleAddressChange}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={addressForm.is_default}
+                onChange={(e) => setAddressForm({ ...addressForm, is_default: e.target.checked })}
+                name="is_default"
+              />
+            }
+            label="Set as default address"
           />
         </DialogContent>
         <DialogActions>

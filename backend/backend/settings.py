@@ -10,8 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
+import storages.backends.s3boto3
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -139,6 +144,8 @@ MONGO_DB = 'filemanager_db'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -165,9 +172,10 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # AWS S3 Configuration
+# Get AWS credentials from environment variables or use dummy values for development
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
-AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'trisha.vid.ip')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'trisha.vid.ip') 
 AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'ap-south-1')
 AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 AWS_S3_OBJECT_PARAMETERS = {
@@ -176,19 +184,33 @@ AWS_S3_OBJECT_PARAMETERS = {
 AWS_MEDIA_LOCATION = 'uploads'
 AWS_S3_SIGNATURE_VERSION = 's3v4'
 AWS_S3_FILE_OVERWRITE = False
-AWS_DEFAULT_ACL = None
-AWS_QUERYSTRING_AUTH = False
+# Remove ACL settings since the bucket doesn't support ACLs
+# AWS_DEFAULT_ACL = 'public-read'
+AWS_QUERYSTRING_AUTH = True  # Enable query string auth for more secure URLs
+AWS_S3_ADDRESSING_STYLE = 'virtual'
+AWS_S3_FILE_OVERWRITE_ALWAYS = True  # Always overwrite files with the same name
+
+# Use the custom NoCheckS3Storage that bypasses existence checks
+DEFAULT_FILE_STORAGE = 'api.s3_storage.NoCheckS3Storage'
 
 # Media files (Uploads)
 MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_MEDIA_LOCATION}/'
 
-# Explicitly set Django to use S3Boto3Storage for file storage
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-
-# Completely disable the built-in FileSystemStorage for uploads
+# Update Django 4+ storage configuration
 STORAGES = {
     'default': {
-        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'BACKEND': 'api.s3_storage.NoCheckS3Storage',
+        'OPTIONS': {
+            'location': AWS_MEDIA_LOCATION,
+            'file_overwrite': True,  # Allow overwriting to avoid existence check
+            # Remove ACL settings since the bucket doesn't support ACLs
+            # 'default_acl': 'public-read',
+            'object_parameters': AWS_S3_OBJECT_PARAMETERS,
+            'querystring_auth': True,
+            'signature_version': AWS_S3_SIGNATURE_VERSION,
+            'region_name': AWS_S3_REGION_NAME,
+            'use_ssl': True,
+        },
     },
     'staticfiles': {
         'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
@@ -249,26 +271,18 @@ AUTH_USER_MODEL = 'api.User'
 CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8002']
 
 # Firebase Configuration
-firebase_project_id = os.environ.get('FIREBASE_PROJECT_ID')
-firebase_private_key = os.environ.get('FIREBASE_PRIVATE_KEY')
-firebase_client_email = os.environ.get('FIREBASE_CLIENT_EMAIL')
-
-# Only set FIREBASE_CONFIG if all required fields are present
-if firebase_project_id and firebase_private_key and firebase_client_email:
-    FIREBASE_CONFIG = {
-        "type": "service_account",
-        "project_id": firebase_project_id,
-        "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID', ''),
-        "private_key": firebase_private_key.replace('\\n', '\n'),
-        "client_email": firebase_client_email,
-        "client_id": os.environ.get('FIREBASE_CLIENT_ID', ''),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.environ.get('FIREBASE_CLIENT_CERT_URL', '')
-    }
-else:
-    FIREBASE_CONFIG = None
+FIREBASE_CONFIG = {
+    "type": "service_account",
+    "project_id": "filemanagerss",
+    "private_key_id": "your-private-key-id",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_CONTENT\n-----END PRIVATE KEY-----\n",
+    "client_email": "firebase-adminsdk-xxxxx@filemanagerss.iam.gserviceaccount.com",
+    "client_id": "your-client-id",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxxxx%40filemanagerss.iam.gserviceaccount.com"
+}
 
 # Firebase Web App Config (for frontend)
 FIREBASE_WEB_CONFIG = {
