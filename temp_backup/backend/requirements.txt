@@ -1,0 +1,8 @@
+Django>=5.1.7
+djangorestframework>=3.16.0
+django-cors-headers>=4.7.0
+django-storages>=1.14.5
+boto3>=1.37.23
+Pillow>=10.0.0  # For image processing
+python-dateutil>=2.9.0
+firebase-admin>=6.2.0 
