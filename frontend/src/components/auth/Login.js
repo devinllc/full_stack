@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { TextField, Button, Container, Typography, Box, Paper, Alert } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import { loginWithFirebase } from '../../firebase';
+import API_URL from '../../config';
 
-const Login = ({ login }) => {
+const Login = () => {
     const [error, setError] = useState('');
+    const navigate = useNavigate();
 
     const formik = useFormik({
         initialValues: {
@@ -24,14 +26,16 @@ const Login = ({ login }) => {
 
                 // Login with Firebase
                 let firebaseToken;
+                let firebaseEmail;
                 try {
                     const firebaseResult = await loginWithFirebase(values.email, values.password);
                     firebaseToken = firebaseResult.token;
+                    firebaseEmail = values.email;
                 } catch (firebaseError) {
                     console.error('Firebase login error:', firebaseError);
                     // Try traditional login with email as username
                     try {
-                        const res = await axios.post('/login/', {
+                        const res = await axios.post(`${API_URL}/api/login/`, {
                             username: values.email.split('@')[0], // Use part before @ as username
                             password: values.password
                         });
@@ -39,8 +43,8 @@ const Login = ({ login }) => {
                         // Store token
                         localStorage.setItem('token', res.data.token);
 
-                        // Call the app's login function to update state
-                        login(res.data);
+                        // Redirect to dashboard
+                        navigate('/dashboard');
                         return true;
                     } catch (traditionalError) {
                         // Both Firebase and traditional login failed
@@ -51,19 +55,25 @@ const Login = ({ login }) => {
                 // If we get here, Firebase login succeeded
                 // Login to our backend with Firebase token
                 try {
-                    const res = await axios.post('/login/', {
-                        firebase_token: firebaseToken
+                    const res = await axios.post(`${API_URL}/api/login/`, {
+                        firebase_token: firebaseToken,
+                        email: firebaseEmail
                     });
 
                     // Store token
                     localStorage.setItem('token', res.data.token);
 
-                    // Call the app's login function to update state
-                    login(res.data);
+                    // Redirect to dashboard
+                    navigate('/dashboard');
                     return true;
                 } catch (backendError) {
                     console.error('Backend login error:', backendError);
-                    throw new Error('Login succeeded with Firebase but failed with our backend');
+                    // If Firebase login succeeded, we'll still navigate even if backend login failed
+                    // Store Firebase token for now
+                    localStorage.setItem('firebaseToken', firebaseToken);
+                    navigate('/dashboard');
+                    return true;
+                    // throw new Error('Login succeeded with Firebase but failed with our backend');
                 }
             } catch (err) {
                 setError(err.message || 'Invalid credentials. Please try again.');
