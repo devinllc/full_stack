@@ -249,18 +249,26 @@ AUTH_USER_MODEL = 'api.User'
 CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8002']
 
 # Firebase Configuration
-FIREBASE_CONFIG = {
-    "type": "service_account",
-    "project_id": os.environ.get('FIREBASE_PROJECT_ID', 'filemanagerss'),
-    "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID', ''),
-    "private_key": os.environ.get('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
-    "client_email": os.environ.get('FIREBASE_CLIENT_EMAIL', ''),
-    "client_id": os.environ.get('FIREBASE_CLIENT_ID', ''),
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": os.environ.get('FIREBASE_CLIENT_CERT_URL', '')
-}
+firebase_project_id = os.environ.get('FIREBASE_PROJECT_ID')
+firebase_private_key = os.environ.get('FIREBASE_PRIVATE_KEY')
+firebase_client_email = os.environ.get('FIREBASE_CLIENT_EMAIL')
+
+# Only set FIREBASE_CONFIG if all required fields are present
+if firebase_project_id and firebase_private_key and firebase_client_email:
+    FIREBASE_CONFIG = {
+        "type": "service_account",
+        "project_id": firebase_project_id,
+        "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID', ''),
+        "private_key": firebase_private_key.replace('\\n', '\n'),
+        "client_email": firebase_client_email,
+        "client_id": os.environ.get('FIREBASE_CLIENT_ID', ''),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.environ.get('FIREBASE_CLIENT_CERT_URL', '')
+    }
+else:
+    FIREBASE_CONFIG = None
 
 # Firebase Web App Config (for frontend)
 FIREBASE_WEB_CONFIG = {

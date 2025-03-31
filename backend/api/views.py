@@ -19,6 +19,7 @@ from django.core.files.storage import default_storage
 from django.db import models
 from django.utils import timezone
 import datetime
+from rest_framework.views import APIView
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -82,172 +83,90 @@ class RegisterView(generics.CreateAPIView):
             'token': token.key
         }, status=status.HTTP_201_CREATED)
 
-@csrf_exempt
-@api_view(['POST'])
-@permission_classes([permissions.AllowAny])
-def login_view(request):
-    # Try traditional authentication first
-    username = request.data.get('username')
-    password = request.data.get('password')
-    
-    if username and password:
-        user = authenticate(username=username, password=password)
-        
-        if user is not None:
-            login(request, user)
-            token, created = Token.objects.get_or_create(user=user)
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            # Check if the request contains Firebase token
+            firebase_token = request.data.get('firebase_token')
+            
+            if firebase_token:
+                # Attempt Firebase authentication first
+                try:
+                    from .firebase_auth import FirebaseAuthBackend
+                    firebase_backend = FirebaseAuthBackend()
+                    firebase_user = firebase_backend.authenticate(request, firebase_token=firebase_token)
+                    
+                    if firebase_user:
+                        # Firebase authentication successful
+                        try:
+                            # Check if user exists in our database
+                            user = User.objects.get(email=firebase_user['email'])
+                        except User.DoesNotExist:
+                            # Create user from Firebase data
+                            username = firebase_user['email'].split('@')[0]
+                            # Ensure username is unique
+                            base_username = username
+                            count = 1
+                            while User.objects.filter(username=username).exists():
+                                username = f"{base_username}{count}"
+                                count += 1
+                            
+                            user = User.objects.create_user(
+                                username=username,
+                                email=firebase_user['email'],
+                            )
+                            user.set_unusable_password()
+                            user.save()
+                        
+                        # Generate token for the user
+                        token, _ = Token.objects.get_or_create(user=user)
+                        return Response({
+                            'token': token.key,
+                            'user_id': user.id,
+                            'email': user.email,
+                            'username': user.username
+                        })
+                    else:
+                        # Firebase authentication failed, continue with standard login
+                        pass
+                except Exception as e:
+                    # Log Firebase authentication error but continue with standard login
+                    logger.error(f"Firebase authentication failed: {str(e)}")
+            
+            # Standard username/password authentication
+            username = request.data.get('username')
+            password = request.data.get('password')
+            
+            if not username or not password:
+                return Response({'error': 'Please provide both username and password'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = authenticate(username=username, password=password)
+            
+            if not user:
+                # Try email as username for better UX
+                try:
+                    user_obj = User.objects.get(email=username)
+                    user = authenticate(username=user_obj.username, password=password)
+                except User.DoesNotExist:
+                    pass
+            
+            if not user:
+                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Login successful
+            token, _ = Token.objects.get_or_create(user=user)
+            
             return Response({
                 'token': token.key,
-                'user_id': user.pk,
-                'username': user.username,
-                'email': user.email
+                'user_id': user.id,
+                'email': user.email,
+                'username': user.username
             })
-    
-    # If traditional auth fails or wasn't attempted, try Firebase
-    firebase_token = request.data.get('firebase_token')
-    
-    if firebase_token:
-        try:
-            # Try to find an authentication backend for Firebase
-            from django.contrib.auth import get_backends
-            backends = get_backends()
-            firebase_backend = None
-            
-            for backend in backends:
-                if 'FirebaseAuthBackend' in backend.__class__.__name__:
-                    firebase_backend = backend
-                    break
-            
-            if not firebase_backend:
-                logger.error("Firebase authentication backend not available")
-                # If no firebase backend, try to use a traditional user with firebase email
-                firebase_email = request.data.get('email')
-                if firebase_email:
-                    try:
-                        user = User.objects.get(email=firebase_email)
-                        # User exists, create token and return success
-                        token, created = Token.objects.get_or_create(user=user)
-                        return Response({
-                            'token': token.key,
-                            'user_id': user.pk,
-                            'username': user.username,
-                            'email': user.email
-                        })
-                    except User.DoesNotExist:
-                        # User doesn't exist, create one
-                        username = firebase_email.split('@')[0]
-                        # Make sure username is unique
-                        if User.objects.filter(username=username).exists():
-                            username = f"{username}_{User.objects.count()}"
-                        
-                        user = User.objects.create_user(
-                            username=username,
-                            email=firebase_email,
-                            password=None,  # No password for Firebase users
-                        )
-                        token, created = Token.objects.get_or_create(user=user)
-                        return Response({
-                            'token': token.key,
-                            'user_id': user.pk,
-                            'username': user.username,
-                            'email': user.email
-                        })
-                        
-                return Response({'detail': 'Firebase authentication backend not available'}, 
-                               status=status.HTTP_400_BAD_REQUEST)
-            
-            # Authenticate using Firebase token
-            user = firebase_backend.authenticate(request, token=firebase_token)
-            
-            if user:
-                # Important: Explicitly specify the backend when logging in
-                login(request, user, backend=firebase_backend.__class__.__module__ + '.' + firebase_backend.__class__.__name__)
-                token, created = Token.objects.get_or_create(user=user)
-                return Response({
-                    'token': token.key,
-                    'user_id': user.pk,
-                    'username': user.username,
-                    'email': user.email
-                })
-                
-            # Fallback for when firebase_backend.authenticate returns None
-            firebase_email = request.data.get('email')
-            if firebase_email:
-                try:
-                    user = User.objects.get(email=firebase_email)
-                    # User exists, create token and return success
-                    token, created = Token.objects.get_or_create(user=user)
-                    return Response({
-                        'token': token.key,
-                        'user_id': user.pk,
-                        'username': user.username,
-                        'email': user.email
-                    })
-                except User.DoesNotExist:
-                    # User doesn't exist, create one
-                    username = firebase_email.split('@')[0]
-                    # Make sure username is unique
-                    if User.objects.filter(username=username).exists():
-                        username = f"{username}_{User.objects.count()}"
-                    
-                    user = User.objects.create_user(
-                        username=username,
-                        email=firebase_email,
-                        password=None,  # No password for Firebase users
-                    )
-                    token, created = Token.objects.get_or_create(user=user)
-                    return Response({
-                        'token': token.key,
-                        'user_id': user.pk,
-                        'username': user.username,
-                        'email': user.email
-                    })
-            
-            return Response({'detail': 'Invalid Firebase credentials'}, 
-                           status=status.HTTP_401_UNAUTHORIZED)
-                
         except Exception as e:
-            logger.error(f"Firebase authentication error: {str(e)}")
-            
-            # Fallback - check if we have email in request
-            firebase_email = request.data.get('email')
-            if firebase_email:
-                try:
-                    user = User.objects.get(email=firebase_email)
-                    # User exists, create token and return success
-                    token, created = Token.objects.get_or_create(user=user)
-                    return Response({
-                        'token': token.key,
-                        'user_id': user.pk,
-                        'username': user.username,
-                        'email': user.email
-                    })
-                except User.DoesNotExist:
-                    # User doesn't exist, create one
-                    username = firebase_email.split('@')[0]
-                    # Make sure username is unique
-                    if User.objects.filter(username=username).exists():
-                        username = f"{username}_{User.objects.count()}"
-                    
-                    user = User.objects.create_user(
-                        username=username,
-                        email=firebase_email,
-                        password=None,  # No password for Firebase users
-                    )
-                    token, created = Token.objects.get_or_create(user=user)
-                    return Response({
-                        'token': token.key,
-                        'user_id': user.pk,
-                        'username': user.username,
-                        'email': user.email
-                    })
-            
-            # If no email, return error
-            return Response({'detail': f'Firebase authentication error: {str(e)}'}, 
-                           status=status.HTTP_400_BAD_REQUEST)
-    
-    # If we get here, all authentication methods failed
-    return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            logger.error(f"Login error: {str(e)}")
+            return Response({'error': 'Login failed'}, status=500)
 
 @api_view(['POST'])
 def logout_view(request):

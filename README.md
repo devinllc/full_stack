@@ -98,6 +98,29 @@ For detailed deployment instructions, see:
 - [Unified Vercel Deployment Guide](./docs/VERCEL_DEPLOYMENT.md)
 - [AWS S3 Setup Guide](./docs/AWS_SETUP.md)
 
+### IMPORTANT: Firebase Credentials
+
+Firebase credentials are not included in the Git repository for security reasons. After deployment, you need to:
+
+1. Add Firebase credentials to your deployed application using one of these methods:
+   - Create a `firebase-credentials.json` file on the server
+   - Set Firebase environment variables in Vercel
+
+See the [Vercel Deployment Guide](./docs/VERCEL_DEPLOYMENT.md) for detailed instructions.
+
+### Pushing Changes to Git
+
+To safely push your changes to Git without including Firebase credentials, use the provided script:
+
+```bash
+./safe_git_push.sh
+```
+
+This script will:
+1. Backup your Firebase credentials file
+2. Remove it before pushing to Git
+3. Restore it after the push is complete
+
 ## Configuration
 
 See the [Configuration Guide](./docs/CONFIGURATION.md) for detailed information on setting up environment variables and application settings.

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { logoutFromFirebase } from './firebase';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import API_URL from './config';
 
 // Components
 import Login from './components/auth/Login';
@@ -89,7 +90,7 @@ function App() {
       }
 
       try {
-        const response = await axios.get('/api/profile/', {
+        const response = await axios.get(`${API_URL}/api/profile/`, {
           headers: { Authorization: `Token ${token}` }
         });
 

@@ -1,0 +1,19 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+.env.*
+!.env.sample
+
+# Firebase credentials
+firebase-credentials.json
+*firebase*credentials*
+*serviceAccount*
+
+# Django media and static
+media/
+staticfiles/
+static/ 

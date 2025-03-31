@@ -11,7 +11,7 @@ router.register(r'addresses', views.AddressViewSet, basename='addresses')
 urlpatterns = [
     path('', include(router.urls)),
     path('register/', csrf_exempt(views.RegisterView.as_view()), name='register'),
-    path('login/', csrf_exempt(views.login_view), name='login'),
+    path('login/', csrf_exempt(views.LoginView.as_view()), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('profile/', views.UserProfileView.as_view(), name='profile'),
     path('dashboard-stats/', views.dashboard_stats, name='dashboard-stats'),

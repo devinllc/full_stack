@@ -5,91 +5,105 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import BaseBackend
 import os
 import logging
+from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import AuthenticationFailed
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
-# Initialize Firebase Admin SDK
+# Initialize Firebase Admin SDK - but only if credentials are available
 firebase_app = None
 try:
-    # Try to get existing app
-    firebase_app = firebase_admin.get_app()
-    logger.info("Using existing Firebase app")
-except ValueError:
-    # App doesn't exist, need to create it
+    # First check if app is already initialized
     try:
-        # Try to use service account json file first
+        firebase_app = firebase_admin.get_app()
+        logger.info("Using existing Firebase app")
+    except ValueError:
+        # App doesn't exist, try different initialization methods
+        
+        # Method 1: Try credentials file
         cred_path = os.path.join(settings.BASE_DIR.parent, 'backend', 'firebase-credentials.json')
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
             firebase_app = firebase_admin.initialize_app(cred)
             logger.info("Firebase initialized with credential file")
-        else:
-            # Fall back to settings dict
-            try:
+        
+        # Method 2: Try settings.FIREBASE_CONFIG
+        elif hasattr(settings, 'FIREBASE_CONFIG') and settings.FIREBASE_CONFIG is not None:
+            if all(key in settings.FIREBASE_CONFIG for key in ['project_id', 'private_key', 'client_email']):
                 cred = credentials.Certificate(settings.FIREBASE_CONFIG)
                 firebase_app = firebase_admin.initialize_app(cred)
                 logger.info("Firebase initialized with settings credential dict")
+            else:
+                logger.warning("FIREBASE_CONFIG exists but is missing required fields")
+        
+        # Method 3: Try application default credentials (for cloud environments)
+        else:
+            try:
+                # We need to set project ID explicitly for application default credentials
+                firebase_app = firebase_admin.initialize_app(options={
+                    'projectId': 'filemanagerss',  # Hardcode the project ID
+                })
+                logger.info("Firebase initialized with application default credentials")
             except Exception as e:
-                logger.error(f"Failed to initialize Firebase with settings: {str(e)}")
-                # Create a dummy app with minimal config to prevent further errors
-                firebase_app = firebase_admin.initialize_app(credentials.ApplicationDefault())
-                logger.warning("Using application default credentials as fallback")
-    except Exception as e:
-        logger.error(f"Failed to initialize Firebase: {str(e)}")
-        # Continue without Firebase - authentication will fail but app won't crash
+                logger.error(f"Failed to initialize Firebase with default credentials: {str(e)}")
+                
+except Exception as e:
+    logger.error(f"Failed to initialize Firebase: {str(e)}")
 
 class FirebaseAuthBackend(BaseBackend):
     """
     Custom authentication backend for Firebase.
     Verifies Firebase tokens and authenticates users.
     """
-    def authenticate(self, request, token=None, **kwargs):
-        if not token or firebase_app is None:
-            return None
-            
-        try:
-            # Verify the token with Firebase
-            decoded_token = auth.verify_id_token(token)
-            uid = decoded_token['uid']
-            
-            # Get user info from Firebase
-            firebase_user = auth.get_user(uid)
-            
-            # Get or create user in our database
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        """
+        Authenticate using Firebase or fallback to standard authentication
+        """
+        # If firebase_token in kwargs, try to authenticate with Firebase
+        firebase_token = kwargs.get('firebase_token')
+        if firebase_token and firebase_app is not None:
             try:
-                user = User.objects.get(email=firebase_user.email)
-            except User.DoesNotExist:
-                # Create a new user
-                username = firebase_user.email.split('@')[0]
-                # Ensure username is unique
-                base_username = username
-                count = 1
-                while User.objects.filter(username=username).exists():
-                    username = f"{base_username}{count}"
-                    count += 1
-                    
-                user = User(
-                    username=username,
-                    email=firebase_user.email,
-                    first_name=firebase_user.display_name.split()[0] if firebase_user.display_name else '',
-                    last_name=' '.join(firebase_user.display_name.split()[1:]) if firebase_user.display_name and len(firebase_user.display_name.split()) > 1 else '',
-                    phone_number=firebase_user.phone_number or ''
-                )
-                user.set_unusable_password()  # No password, since auth is handled by Firebase
-                user.save()
+                # Verify the Firebase token
+                decoded_token = auth.verify_id_token(firebase_token)
+                uid = decoded_token.get('uid')
                 
-            return user
-            
-        except Exception as e:
-            # Invalid token or other error
-            logger.error(f"Firebase authentication error: {str(e)}")
-            return None
-            
+                # Get user info from Firebase
+                user_info = auth.get_user(uid)
+                
+                # Return user info for further processing
+                return {'uid': uid, 'email': user_info.email, 'firebase_user': True}
+            except Exception as e:
+                logger.error(f"Firebase authentication error: {str(e)}")
+                return None
+                
+        # No token or Firebase not initialized, return None to allow other backends
+        return None
+
     def get_user(self, user_id):
         try:
             return User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return None 
+
+class FirebaseAuthentication(BaseAuthentication):
+    """
+    DRF Authentication class for Firebase
+    """
+    def authenticate(self, request):
+        # Extract token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or 'Bearer' not in auth_header:
+            return None
+
+        token = auth_header.split(' ')[1]
+        
+        # Authenticate token
+        firebase_backend = FirebaseAuthBackend()
+        user = firebase_backend.authenticate(request, firebase_token=token)
+        
+        if user:
+            return (user, token)
+        return None 

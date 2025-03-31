@@ -75,3 +75,4 @@ firebase-credentials.json
 # AWS
 *aws*credentials*.json
 .aws/
+*firebase-credentials.json
